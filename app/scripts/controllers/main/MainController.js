@@ -1,13 +1,67 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        MainController: function (scope, location, sessionManager, translate, $rootScope, localStorageService, keyboardManager, $idle, tmhDynamicLocale, 
+        MainController: function (scope, location, sessionManager, translate, $rootScope, localStorageService, keyboardManager, $idle, tmhDynamicLocale,
                   uiConfigService, $http) {
-
-            $http.get('release.json').success(function(data) {
+            $http.get('release.json').then(function onSuccess(response) {
+                var data = response.data;
                 scope.version = data.version;
                 scope.releasedate = data.releasedate;
-            } );
-            uiConfigService.init();
+            });
+
+            scope.islogofoldernamefetched = false;
+            scope.islogofoldernameconfig = false;
+            scope.isFaviconPath = false;
+            scope.isHeaderLogoPath = false;
+            scope.isBigLogoPath = false;
+            scope.isLargeLogoPath = false;
+
+            if(!scope.islogofoldernamefetched && $rootScope.tenantIdentifier && $rootScope.tenantIdentifier != "default"){
+                scope.islogofoldernamefetched = true;
+                $http.get('scripts/config/LogoConfig.json').then(function onSuccess(response) {
+                    var datas = response.data;
+                    for(var i in datas){
+                        var data = datas[i];
+                        if(data.tenantIdentifier != undefined && data.tenantIdentifier == $rootScope.tenantIdentifier){
+                            if(data.logofoldername != undefined && data.logofoldername != ""){
+                                scope.islogofoldernameconfig = true;
+                                scope.logofoldername = data.logofoldername;
+                                if(data.faviconPath){
+                                    scope.isFaviconPath = true;
+                                    scope.faviconPath = data.faviconPath;
+                                }
+                                if(data.bigLogoPath){
+                                    scope.isBigLogoPath = true;
+                                    scope.bigLogoPath = data.bigLogoPath;
+                                }
+                                if(data.headerLogoPath){
+                                    scope.isHeaderLogoPath = true;
+                                    scope.headerLogoPath = data.headerLogoPath;
+                                }
+                                if(data.largeLogoPath){
+                                    scope.isLargeLogoPath = true;
+                                    scope.largeLogoPath = data.largeLogoPath;
+                                }
+                            }
+                        }
+                    }
+                }).catch(function onError(response) {
+                    console.warn("Error: ", response.data)
+                });
+            }
+            
+            scope.$on('scrollbar.show', function(){
+                  console.log('Scrollbar show');
+                });
+            scope.$on('scrollbar.hide', function(){
+                  console.log('Scrollbar hide');
+                });
+
+            uiConfigService.init(scope);
+            
+            
+            scope.$on('configJsonObj',function(e,response){
+                scope.response = response;
+            });
             //hides loader
             scope.domReady = true;
             scope.activity = {};
@@ -32,6 +86,7 @@
                     scope.dateformat = 'dd MMMM yyyy';
                 }
                 scope.df = scope.dateformat;
+                scope.dft = scope.dateformat + ' ' + 'HH:mm:ss'
             };
 
             scope.updateDf = function(dateFormat){
@@ -102,6 +157,12 @@
             };
 
             scope.leftnav = false;
+            scope.$on("UserAuthenticationTwoFactorRequired", function (event, data) {
+                if (sessionManager.get(data)) {
+                    scope.start(scope.currentSession);
+                }
+            });
+
             scope.$on("UserAuthenticationSuccessEvent", function (event, data) {
                 scope.authenticationFailed = false;
                 scope.resetPassword = data.shouldRenewPassword;
@@ -119,7 +180,7 @@
             });
 
             var setSearchScopes = function () {
-                var all = {name: "label.search.scope.all", value: "clients,clientIdentifiers,groups,savings,loans"};
+                var all = {name: "label.search.scope.all", value: "clients,clientIdentifiers,groups,savings,shares,loans"};
                 var clients = {
                     name: "label.search.scope.clients.and.clientIdentifiers",
                     value: "clients,clientIdentifiers"
@@ -129,8 +190,9 @@
                     value: "groups"
                 };
                 var savings = {name: "label.input.adhoc.search.loans", value: "loans"};
+                var shares = {name: "label.search.scope.shares", value: "shares"};
                 var loans = {name: "label.search.scope.savings", value: "savings"};
-                scope.searchScopes = [all,clients,groups,loans,savings];
+                scope.searchScopes = [all,clients,groups,loans,savings,shares];
                 scope.currentScope = all;
             }
 
@@ -156,10 +218,11 @@
 
             };
             scope.text = '<span>Mifos X is designed by the <a href="http://www.openmf.org/">Mifos Initiative</a>.' +
-            '<a href="http://mifos.org/resources/community/"> A global community </a> thats aims to speed the elimination of poverty by enabling Organizations to more effectively and efficiently deliver responsible financial services to the world’s poor and unbanked </span><br/>' +
+            '<a href="http://mifos.org/resources/community/"> A global community </a> that aims to speed the elimination of poverty by enabling Organizations to more effectively and efficiently deliver responsible financial services to the world’s poor and unbanked </span><br/>' +
             '<span>Sounds interesting?<a href="http://mifos.org/take-action/volunteer/"> Get involved!</a></span>';
 
             scope.logout = function () {
+                $rootScope.$broadcast("OnUserPreLogout");
                 scope.currentSession = sessionManager.clear();
                 scope.resetPassword = false;
                 location.path('/').replace();
@@ -178,7 +241,7 @@
                 scope.optlang = scope.langs[0];
                 tmhDynamicLocale.set(scope.langs[0].code);
                 }
-            translate.uses(scope.optlang.code);
+            translate.use(scope.optlang.code);
 
             scope.isActive = function (route) {
                 if (route == 'clients') {
@@ -277,7 +340,7 @@
                 document.getElementById('prev').click();
             });
             scope.changeLang = function (lang, $event) {
-                translate.uses(lang.code);
+                translate.use(lang.code);
                 localStorageService.addToLocalStorage('Language', lang);
                 tmhDynamicLocale.set(lang.code);
                 scope.optlang = lang;
@@ -290,7 +353,7 @@
                 "https://mifosforge.jira.com/wiki/pages/viewpage.action?pageId=67141762","https://mifosforge.jira.com/wiki/dosearchsite.action?queryString=report&startIndex=0&where=docs",
                 "https://mifosforge.jira.com/wiki/dosearchsite.action?queryString=accounting&startIndex=0&where=docs",  "https://mifosforge.jira.com/wiki/display/docs/Manage+Clients",
                 "https://mifosforge.jira.com/wiki/display/docs/Manage+Groups","https://mifosforge.jira.com/wiki/display/docs/Manage+Centers",
-                "https://mifosforge.jira.com/wiki/display/docs/Community+App+User+Manual","https://mifosforge.jira.com/wiki/display/docs/Manage+Offices",
+                "https://mifosforge.jira.com/wiki/display/docs/User+Manual","https://mifosforge.jira.com/wiki/display/docs/Manage+Offices",
                 "https://mifosforge.jira.com/wiki/display/docs/Manage+Holidays","https://mifosforge.jira.com/wiki/display/docs/Manage+Employees",
                 "https://mifosforge.jira.com/wiki/display/docs/Manage+Funds","https://mifosforge.jira.com/wiki/display/docs/Bulk+Loan+Reassignment",
                 "https://mifosforge.jira.com/wiki/display/docs/Currency+Configuration","https://mifosforge.jira.com/wiki/display/docs/Standing+Instructions+History",
@@ -305,7 +368,7 @@
                 "https://mifosforge.jira.com/wiki/pages/viewpage.action?pageId=67895308","https://mifosforge.jira.com/wiki/display/docs/Add+Journal+Entries",
                 "https://mifosforge.jira.com/wiki/dosearchsite.action?queryString=search%20journal%20entries&startIndex=0&where=docs",  "https://mifosforge.jira.com/wiki/dosearchsite.action?queryString=accounts%20linked&startIndex=0&where=docs",
                 "https://mifosforge.jira.com/wiki/display/docs/Chart+of+Accounts+and+General+Ledger+Setup", "https://mifosforge.jira.com/wiki/display/docs/Closing+Entries",
-                "https://mifosforge.jira.com/wiki/pages/viewpage.action?pageId=67895308","https://mifosforge.jira.com/wiki/display/docs/Accruals"]; 
+                "https://mifosforge.jira.com/wiki/pages/viewpage.action?pageId=67895308","https://mifosforge.jira.com/wiki/display/docs/Accruals"];
             // array is huge, but working good
             // create second array with address models
             var addrmodels = ['/users/','/organization','/system','/products','/templates', '', '/accounting',
@@ -315,27 +378,27 @@
                                 '/savingproducts','/charges','/productmix', '/fixeddepositproducts','/recurringdepositproducts','/freqposting',
                                 '/journalentry','/searchtransaction','/financialactivityaccountmappings','/accounting_coa', '/accounts_closure','/accounting_rules','/run_periodic_accrual'];
             // * text-based address-recognize system *
-            var actualadr = location.absUrl();  // get full URL     
+            var actualadr = location.absUrl();  // get full URL
             var lastchar = 0;
             for( var i = 0; i<actualadr.length;i++)
                 {
-                    
+
                     if(actualadr.charAt(i) == '#')
                     {
-                        lastchar = i+1;                     
+                        lastchar = i+1;
                         break;
                         // found '#' and save position of it
                     }
                 }//for
-            
+
             var whereweare = actualadr.substring(lastchar); // cut full URL to after-'#' part
-            
+
             // string after '#' is compared with model
             var addrfound = false;
             if(whereweare == '/reports/all' || whereweare == '/reports/clients' || whereweare == '/reports/loans' || whereweare == '/reports/savings' || whereweare == '/reports/funds' || whereweare == '/reports/accounting' || whereweare == '/xbrl'  )
                      {
                         window.open(addresses[5]);
-                        addrfound = true;                   
+                        addrfound = true;
                      }// '/reports/...' are exception -> link to Search in Documentation word 'report'
                      else{
                             for(var i = 0; i< addrmodels.length; i++)
@@ -346,16 +409,16 @@
                                         {
                                                 addrfound = true;
                                                 window.open(addresses[i]);
-                                                break;          
+                                                break;
                                                 // model found -> open address and break
                                         }
-                                    }                               
+                                    }
                             }//for
                           }//else
                 if(addrfound == false) window.open(addresses[10]); // substring not matching to any model -> open start user manual page
-            
+
             };//helpf
-            
+
             sessionManager.restore(function (session) {
                 scope.currentSession = session;
                 scope.start(scope.currentSession);

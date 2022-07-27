@@ -1,6 +1,6 @@
  (function(module) {
   mifosX.controllers = _.extend(module, {
-    InterestRateChartController: function(scope, routeParams, resourceFactory, location,$modal) {
+    InterestRateChartController: function(scope, routeParams, resourceFactory, location,$uibModal) {
         scope.edit = function(id){
             location.path('/editinterestratechart/' + id);
         };
@@ -21,15 +21,12 @@
             scope.charts = data;
             _.each(scope.charts,function(chart){
                 scope.chartSlabs = chart.chartSlabs;
-                chart.chartSlabs = _.sortBy(scope.chartSlabs, function (obj) {
-                    return obj.fromPeriod
-                });
             });
 
         });
 
         scope.incentives = function(index,parent){
-            $modal.open({
+            $uibModal.open({
                 templateUrl: 'incentive.html',
                 controller: IncentiveCtrl,
                 resolve: {
@@ -40,7 +37,7 @@
             });
         }
 
-        var IncentiveCtrl = function ($scope, $modalInstance, chartSlab) {
+        var IncentiveCtrl = function ($scope, $uibModalInstance, chartSlab) {
             $scope.chartSlab = chartSlab;
             _.each($scope.chartSlab.incentives, function (incentive) {
                 if(!incentive.attributeValueDesc){
@@ -48,14 +45,14 @@
                 }
             });
             $scope.cancel = function () {
-                $modalInstance.dismiss('cancel');
+                $uibModalInstance.dismiss('cancel');
             };
         };
 
 
     }
   });
-  mifosX.ng.application.controller('InterestRateChartController', ['$scope', '$routeParams', 'ResourceFactory','$location','$modal', mifosX.controllers.InterestRateChartController]).run(function($log) {
+  mifosX.ng.application.controller('InterestRateChartController', ['$scope', '$routeParams', 'ResourceFactory','$location','$uibModal', mifosX.controllers.InterestRateChartController]).run(function($log) {
     $log.info("InterestRateChartController initialized");
   });
 }(mifosX.controllers || {}));

@@ -1,15 +1,19 @@
-(function (module) {
+    (function (module) {
     mifosX.controllers = _.extend(module, {
-        CreateRecurringDepositAccountController: function (scope, resourceFactory, location, routeParams, dateFilter,$modal) {
+        CreateRecurringDepositAccountController: function (scope, resourceFactory, location, routeParams, WizardHandler, dateFilter, uiConfigService, $uibModal) {
             scope.products = [];
             scope.fieldOfficers = [];
             scope.formData = {};
             scope.restrictDate = new Date();
+            scope.recurringDetails = {};
             scope.clientId = routeParams.clientId;
             scope.groupId = routeParams.groupId;
             if (routeParams.centerEntity) {
                 scope.centerEntity = true;
             }
+            scope.date = {};
+			scope.date.submittedOnDate = new Date();
+            scope.disabled = true;
 
             //interest rate chart details
             scope.chart = {};
@@ -39,6 +43,10 @@
                 scope.groupName = data.groupName;
             });
 
+            scope.goNext = function(form){
+                WizardHandler.wizard().checkValid(form);
+            }
+
             scope.changeProduct = function () {
                 scope.inparams.productId = scope.formData.productId;
                 resourceFactory.recurringDepositAccountTemplateResource.get(scope.inparams, function (data) {
@@ -55,6 +63,7 @@
                     scope.fieldOfficers = data.fieldOfficerOptions;
                     scope.formData.nominalAnnualInterestRate = data.nominalAnnualInterestRate;
                     scope.formData.lockinPeriodFrequency = data.lockinPeriodFrequency;
+                    scope.formData.withHoldTax = data.withHoldTax;
 
                     if (data.interestCompoundingPeriodType) scope.formData.interestCompoundingPeriodType = data.interestCompoundingPeriodType.id;
                     if (data.interestPostingPeriodType) scope.formData.interestPostingPeriodType = data.interestPostingPeriodType.id;
@@ -65,11 +74,11 @@
                     if (data.interestFreePeriodApplicable) scope.formData.interestFreePeriodApplicable = data.interestFreePeriodApplicable;
                     if (data.preClosurePenalApplicable) scope.formData.preClosurePenalApplicable = data.preClosurePenalApplicable;
 
+                    scope.disabled = false;
+                    scope.recurringDetails = angular.copy(scope.formData);
+                    scope.recurringDetails.productName = scope.formValue(scope.products,scope.formData.productId,'id','name');
                     scope.chart = data.accountChart;
                     scope.chartSlabs = scope.chart.chartSlabs;
-                    scope.chart.chartSlabs = _.sortBy(scope.chartSlabs, function (obj) {
-                        return obj.fromPeriod
-                    });
                     //format chart date values
                     if (scope.chart.fromDate) {
                         var fromDate = dateFilter(scope.chart.fromDate, scope.df);
@@ -101,6 +110,19 @@
                 });
             };
 
+            scope.$watch('formData',function(newVal){
+               scope.recurringDetails = angular.extend(scope.recurringDetails,newVal);
+            });
+
+            scope.formValue = function(array,model,findattr,retAttr){
+                findattr = findattr ? findattr : 'id';
+                retAttr = retAttr ? retAttr : 'value';
+                console.log(findattr,retAttr,model);
+                return _.find(array, function (obj) {
+                    return obj[findattr] === model;
+                })[retAttr];
+            };
+            
             scope.addCharge = function (chargeId) {
                 scope.errorchargeevent = false;
                 if (chargeId) {
@@ -169,6 +191,7 @@
                     this.formData.expectedFirstDepositOnDate = dateFilter(scope.formData.expectedFirstDepositOnDate, scope.df);
                 }
 
+
                 resourceFactory.recurringDepositAccountResource.save(this.formData, function (data) {
                     location.path('/viewrecurringdepositaccount/' + data.savingsId);
                 });
@@ -228,6 +251,7 @@
                     description: scope.chart.description,
                     fromDate: dateFilter(scope.fromDate.date, scope.df),
                     endDate: dateFilter(scope.endDate.date, scope.df),
+                    isPrimaryGroupingByAmount:scope.chart.isPrimaryGroupingByAmount,
                     //savingsProductId: scope.productId,
                     dateFormat: scope.df,
                     locale: scope.optlang.code,
@@ -268,7 +292,6 @@
                 var newChartSlabData = {
                     id: chartSlab.id,
                     description: chartSlab.description,
-                    periodType: chartSlab.periodType.id,
                     fromPeriod: chartSlab.fromPeriod,
                     toPeriod: chartSlab.toPeriod,
                     amountRangeFrom: chartSlab.amountRangeFrom,
@@ -276,6 +299,10 @@
                     annualInterestRate: chartSlab.annualInterestRate,
                     locale: scope.optlang.code,
                     incentives:angular.copy(copyIncentives(chartSlab.incentives))
+                }
+
+                if(chartSlab.periodType != undefined) {
+                    newChartSlabData.periodType = chartSlab.periodType.id;
                 }
 
                 //remove empty values
@@ -308,7 +335,7 @@
             }
 
             scope.incentives = function(index){
-                $modal.open({
+                $uibModal.open({
                     templateUrl: 'incentive.html',
                     controller: IncentiveCtrl,
                     resolve: {
@@ -355,7 +382,7 @@
                 return newIncentiveDataData;
             }
 
-            var IncentiveCtrl = function ($scope, $modalInstance, data,chartSlab) {
+            var IncentiveCtrl = function ($scope, $uibModalInstance, data,chartSlab) {
                 $scope.data = data;
                 $scope.chartSlab = chartSlab;
                 _.each($scope.chartSlab.incentives, function (incentive) {
@@ -364,7 +391,7 @@
                     }
                 });
                 $scope.cancel = function () {
-                    $modalInstance.dismiss('cancel');
+                    $uibModalInstance.dismiss('cancel');
                 };
 
                 $scope.addNewRow = function () {
@@ -390,7 +417,7 @@
 
         }
     });
-    mifosX.ng.application.controller('CreateRecurringDepositAccountController', ['$scope', 'ResourceFactory', '$location', '$routeParams', 'dateFilter','$modal', mifosX.controllers.CreateRecurringDepositAccountController]).run(function ($log) {
+    mifosX.ng.application.controller('CreateRecurringDepositAccountController', ['$scope', 'ResourceFactory', '$location', '$routeParams', 'WizardHandler', 'dateFilter','$uibModal', mifosX.controllers.CreateRecurringDepositAccountController]).run(function ($log) {
         $log.info("CreateRecurringDepositAccountController initialized");
     });
 }(mifosX.controllers || {}));

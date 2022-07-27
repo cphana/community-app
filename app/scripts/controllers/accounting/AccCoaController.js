@@ -1,6 +1,6 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        AccCoaController: function (scope,$rootScope, resourceFactory, location) {
+        AccCoaController: function (scope,$rootScope, translate, resourceFactory, location, anchorScroll) {
 			
 			$rootScope.tempNodeID = -100; // variable used to store nodeID (from directive), so it(nodeID) is available for detail-table
 			
@@ -11,6 +11,12 @@
                 location.path('/viewglaccount/' + id);
             };
 
+            scope.scrollto = function (link){
+                location.hash(link);
+                anchorScroll();
+
+            };
+
             if (!scope.searchCriteria.acoa) {
                 scope.searchCriteria.acoa = null;
                 scope.saveSC();
@@ -18,7 +24,7 @@
             scope.filterText = scope.searchCriteria.acoa;
 
             scope.onFilter = function () {
-                scope.searchCriteria.acoa = scope.filterText;
+                scope.searchCriteria.acoa = scope.filterText || '';
                 scope.saveSC();
             };
 
@@ -40,16 +46,22 @@
                 return obj;
             }
 
+            scope.ChartsPerPage = 15;
             resourceFactory.accountCoaResource.getAllAccountCoas(function (data) {
                 scope.coadatas = scope.deepCopy(data);
-				
+                scope.ASSET = translate.instant('ASSET') ;
+                scope.LIABILITY = translate.instant('LIABILITY') ;
+                scope.EQUITY = translate.instant('EQUITY') ;
+                scope.INCOME = translate.instant('INCOME') ;
+                scope.EXPENSE = translate.instant('EXPENSE') ;
+                scope.Accounting = translate.instant('Accounting') ;
 
-                var assetObject = {id: -1, name: "ASSET", parentId: -999, children: []};
-                var liabilitiesObject = {id: -2, name: "LIABILITY", parentId: -999, children: []};
-                var equitiyObject = {id: -3, name: "EQUITY", parentId: -999, children: []};
-                var incomeObject = {id: -4, name: "INCOME", parentId: -999, children: []};
-                var expenseObject = {id: -5, name: "EXPENSE", parentId: -999, children: []};
-                var rootObject = {id: -999, name: "Accounting", children: []};
+                var assetObject = {id: -1, name: scope.ASSET, parentId: -999, children: []};
+                var liabilitiesObject = {id: -2, name: scope.LIABILITY, parentId: -999, children: []};
+                var equitiyObject = {id: -3, name: scope.EQUITY, parentId: -999, children: []};
+                var incomeObject = {id: -4, name: scope.INCOME, parentId: -999, children: []};
+                var expenseObject = {id: -5, name: scope.EXPENSE, parentId: -999, children: []};
+                var rootObject = {id: -999, name: scope.Accounting, children: []};
                 var rootArray = [rootObject, assetObject, liabilitiesObject, equitiyObject, incomeObject, expenseObject];
 				
                 var idToNodeMap = {};
@@ -104,7 +116,7 @@
 			
         }
     });
-    mifosX.ng.application.controller('AccCoaController', ['$scope','$rootScope', 'ResourceFactory', '$location', mifosX.controllers.AccCoaController]).run(function ($log) {
+    mifosX.ng.application.controller('AccCoaController', ['$scope','$rootScope', '$translate', 'ResourceFactory', '$location','$anchorScroll', mifosX.controllers.AccCoaController]).run(function ($log) {
         $log.info("AccCoaController initialized");
     });
 }(mifosX.controllers || {}));

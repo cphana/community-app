@@ -6,26 +6,51 @@
 
             resourceFactory.loanRescheduleResource.get({scheduleId:scope.requestId}, function (data) {
                 scope.loanRescheduleDetails = data;
+                scope.loanTermVariationsData = data.loanTermVariationsData;
                 scope.rescheduleFromDate = new Date(scope.loanRescheduleDetails.rescheduleFromDate);
                 scope.rescheduleFromDate = dateFilter(scope.rescheduleFromDate,"dd MMMM yyyy");
                 scope.submittedOnDate = new Date(scope.loanRescheduleDetails.timeline.submittedOnDate);
                 scope.submittedOnDate = dateFilter(scope.submittedOnDate,"dd MMMM yyyy");
-                if(scope.loanRescheduleDetails.adjustedDueDate != null)
-                if(scope.loanRescheduleDetails.adjustedDueDate != null)
-                {
-                    scope.loanRescheduleDetails.adjustedDueDate = new Date(scope.loanRescheduleDetails.adjustedDueDate);
-                    scope.loanRescheduleDetails.adjustedDueDate = dateFilter(scope.loanRescheduleDetails.adjustedDueDate,"dd MMMM yyyy");
-                    scope.changeRepaymentDate = true;
-                }
-                if(scope.loanRescheduleDetails.graceOnPrincipal != null || scope.loanRescheduleDetails.graceOnInterest != null)
-                {
-                    scope.introduceGracePeriods = true;
-                }
-                if(scope.loanRescheduleDetails.extraTerms != null){
-                    scope.extendRepaymentPeriod = true;
-                }
-                if(scope.loanRescheduleDetails.interestRate != null){
-                    scope.adjustinterestrates = true;
+                scope.loanRescheduleDetails.emichange = [];
+                for(var i in scope.loanTermVariationsData) {
+                    if(scope.loanTermVariationsData[i].termType.value == "dueDate") {
+                        scope.loanRescheduleDetails.adjustedDueDate = new Date(scope.loanTermVariationsData[i].dateValue);
+                        scope.loanRescheduleDetails.adjustedDueDate = dateFilter(scope.loanTermVariationsData[i].dateValue,"dd MMMM yyyy");
+                        scope.changeRepaymentDate = true;
+                    }
+
+                    if(scope.loanTermVariationsData[i].termType.value == "graceOnPrincipal") {
+                        scope.loanRescheduleDetails.graceOnPrincipal = scope.loanTermVariationsData[i].decimalValue;
+                        scope.introduceGracePeriods = true;
+                    }
+
+                    if(scope.loanTermVariationsData[i].termType.value == "graceOnInterest") {
+                        scope.loanRescheduleDetails.graceOnInterest = scope.loanTermVariationsData[i].decimalValue;
+                        scope.introduceGracePeriods = true;
+                    }
+
+                    if(scope.loanTermVariationsData[i].termType.value == "extendRepaymentPeriod") {
+                        scope.loanRescheduleDetails.extraTerms = scope.loanTermVariationsData[i].decimalValue;
+                        scope.extendRepaymentPeriod = true;
+                    }
+
+                    if(scope.loanTermVariationsData[i].termType.value == "interestRateForInstallment") {
+                        scope.loanRescheduleDetails.interestRate = scope.loanTermVariationsData[i].decimalValue;
+                        scope.adjustinterestrates = true;
+                    }
+                    if(scope.loanTermVariationsData[i].termType.value == "principalPercentagePerInstallment") {
+                        scope.loanRescheduleDetails.newFixedPrincipalPercentagePerInstallment = scope.loanTermVariationsData[i].decimalValue;
+                        scope.changeFixedPrincipalPercentagePerInstallment = true;
+                    }
+                    
+
+                    if(scope.loanTermVariationsData[i].termType.value == "emiAmount") {
+                        var emi = {};
+                        emi.emi = scope.loanTermVariationsData[i].decimalValue;
+                        emi.instDate = dateFilter(scope.loanTermVariationsData[i].dateValue,"dd MMMM yyyy");
+                        scope.loanRescheduleDetails.emichange.push(emi);
+                        scope.changeEMI = true;
+                    }
                 }
             });
 

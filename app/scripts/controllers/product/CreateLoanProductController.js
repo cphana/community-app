@@ -1,9 +1,11 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        CreateLoanProductController: function (scope, resourceFactory, location, dateFilter) {
+        CreateLoanProductController: function (scope, $rootScope, resourceFactory, location, dateFilter,WizardHandler, translate) {
             scope.restrictDate = new Date();
             scope.formData = {};
+            scope.loanproduct = {};
             scope.charges = [];
+            scope.accountingOptions = ['None','Cash','Accrual(Periodic)','Accrual(Upfront)'];
             scope.floatingrateoptions = [];
             scope.loanProductConfigurableAttributes = [];
             scope.showOrHideValue = "show";
@@ -29,6 +31,14 @@
             scope.repaymentFrequency = true;
             scope.transactionProcessingStrategy = true;
             scope.allowAttributeConfiguration = true;
+            scope.interestRecalculationOnDayTypeOptions = [];
+            scope.translate = translate;
+            //Rates
+            scope.rates = [];
+            scope.rateFlag = false;
+            for (var i = 1; i <= 28; i++) {
+                scope.interestRecalculationOnDayTypeOptions.push(i);
+            }
             resourceFactory.loanProductResource.get({resourceType: 'template'}, function (data) {
                 scope.product = data;
                 scope.assetAccountOptions = scope.product.accountingMappingOptions.assetAccountOptions || [];
@@ -46,7 +56,7 @@
                 }
                 scope.formData.currencyCode = scope.product.currencyOptions[0].code;
                 scope.formData.includeInBorrowerCycle = 'false';
-                scope.formData.useBorrowerCycle = 'false';
+                scope.formData.useBorrowerCycle = false;
                 scope.formData.digitsAfterDecimal = '2';
                 scope.formData.inMultiplesOf = '0';
                 scope.formData.repaymentFrequencyType = scope.product.repaymentFrequencyType.id;
@@ -58,7 +68,7 @@
                 scope.formData.principalVariationsForBorrowerCycle = scope.product.principalVariationsForBorrowerCycle;
                 scope.formData.interestRateVariationsForBorrowerCycle = scope.product.interestRateVariationsForBorrowerCycle;
                 scope.formData.numberOfRepaymentVariationsForBorrowerCycle = scope.product.numberOfRepaymentVariationsForBorrowerCycle;
-                scope.formData.multiDisburseLoan = 'false';
+                scope.formData.multiDisburseLoan = false;
                 scope.formData.accountingRule = '1';
                 scope.formData.daysInYearType = scope.product.daysInYearType.id;
                 scope.formData.daysInMonthType = scope.product.daysInMonthType.id;
@@ -73,7 +83,32 @@
                 scope.formData.isFloatingInterestRateCalculationAllowed = false ;
                 scope.formData.isLinkedToFloatingInterestRates = false ;
                 scope.formData.allowVariableInstallments = false ;
+                scope.product.interestRecalculationNthDayTypeOptions.push({"code" : "onDay", "id" : -2, "value" : "on day"});
+                scope.loanproduct = angular.copy(scope.formData);
+                scope.isClicked = false;
+
+                //Rate Module
+                scope.rateOptions = scope.product.rateOptions || [];
+                scope.enableRates = scope.product.isRatesEnabled;
             });
+
+             scope.$watch('formData',function(newVal){
+                scope.loanproduct = angular.extend(scope.loanproduct,newVal);
+             },true);
+
+             $rootScope.formValue = function(array,model,findattr,retAttr){
+                 findattr = findattr ? findattr : 'id';
+                 retAttr = retAttr ? retAttr : 'value';
+                 console.log(findattr,retAttr,model);
+                 return _.find(array, function (obj) {
+                    return obj[findattr] === model;
+                 })[retAttr];
+            };
+
+            scope.goNext = function(form){
+                WizardHandler.wizard().checkValid(form);
+                scope.isClicked = true;
+            }
 
             scope.chargeSelected = function (chargeId) {
 
@@ -94,7 +129,50 @@
                 }
             };
 
-            scope.deleteCharge = function (index) {
+          //Rate
+          scope.rateSelected = function (currentRate) {
+
+            if (currentRate) {
+              scope.rateFlag = true;
+              scope.rates.push(currentRate);
+              scope.rateOptions.splice(scope.rateOptions.indexOf(currentRate), 1);
+              scope.currentRate = '';
+              scope.calculateRates();
+            }
+          };
+
+          scope.calculateRates = function () {
+            var total = 0;
+            var minRate = 0;
+            scope.rates.forEach(function (rate) {
+              if (rate.percentage < minRate || minRate === 0) {
+                minRate = rate.percentage;
+              }
+              total += rate.percentage;
+            });
+
+            if (minRate === 0) {
+              minRate = undefined;
+            }
+            if (total === 0) {
+              total = undefined;
+              scope.rateFlag = false;
+            }
+
+            scope.formData.minInterestRatePerPeriod = minRate;
+            //Assign the same total range to this values.
+            scope.formData.interestRatePerPeriod = total;
+            scope.formData.maxInterestRatePerPeriod = total;
+            scope.calculatedRatePerPeriod = total;
+          };
+
+          scope.deleteRate = function (index) {
+            scope.rateOptions.push(scope.rates[index]);
+            scope.rates.splice(index, 1);
+            scope.calculateRates();
+          };
+
+          scope.deleteCharge = function (index) {
                 scope.charges.splice(index, 1);
             };
 
@@ -198,7 +276,6 @@
                 }
                 return false;
             }
-
             scope.setAttributeValues = function(){
                 if(scope.allowAttributeConfiguration == false){
                     scope.amortization = false;
@@ -211,6 +288,18 @@
                     scope.transactionProcessingStrategy = false;
                 }
             }
+
+	    scope.filterCharges = function(currencyCode, multiDisburseLoan) {
+		return function (item) {
+			if ((multiDisburseLoan != true) && item.chargeTimeType.id == 12) {
+				return false;
+			}
+			if (item.currency.code != currencyCode) {
+				return false;
+			}
+			return true;
+		};
+	    };
 
             scope.submit = function () {
                 var reqFirstDate = dateFilter(scope.date.first, scope.df);
@@ -287,6 +376,7 @@
                 this.formData.dateFormat = scope.df;
                 this.formData.startDate = reqFirstDate;
                 this.formData.closeDate = reqSecondDate;
+                this.formData.rates = scope.rates;
 
                 //Interest recalculation data
                 if (this.formData.isInterestRecalculationEnabled) {
@@ -325,13 +415,40 @@
                     this.formData.allowPartialPeriodInterestCalcualtion = false;
                 }
 
+                if(this.formData.amortizationType != 0){
+                    this.formData.fixedPrincipalPercentagePerInstallment = null;
+                }
+
+                if (this.formData.recalculationCompoundingFrequencyType == 4) {
+                    if(this.formData.recalculationCompoundingFrequencyNthDayType == -2) {
+                        delete this.formData.recalculationCompoundingFrequencyNthDayType;
+                        delete this.formData.recalculationCompoundingFrequencyDayOfWeekType;
+                    } else {
+                        delete this.formData.recalculationCompoundingFrequencyOnDayType;
+                    }
+                } else if (this.formData.recalculationCompoundingFrequencyType == 3){
+                    delete this.formData.recalculationCompoundingFrequencyOnDayType;
+                    delete this.formData.recalculationCompoundingFrequencyNthDayType;
+                }
+
+                if (this.formData.recalculationRestFrequencyType == 4) {
+                    if(this.formData.recalculationRestFrequencyNthDayType == -2) {
+                        delete this.formData.recalculationRestFrequencyNthDayType;
+                        delete this.formData.recalculationRestFrequencyDayOfWeekType;
+                    } else {
+                        delete this.formData.recalculationRestFrequencyOnDayType;
+                    }
+                } else if (this.formData.recalculationRestFrequencyType == 3){
+                    delete this.formData.recalculationRestFrequencyOnDayType;
+                    delete this.formData.recalculationRestFrequencyNthDayType;
+                }
                 resourceFactory.loanProductResource.save(this.formData, function (data) {
                     location.path('/viewloanproduct/' + data.resourceId);
                 });
             };
         }
     });
-    mifosX.ng.application.controller('CreateLoanProductController', ['$scope', 'ResourceFactory', '$location', 'dateFilter', mifosX.controllers.CreateLoanProductController]).run(function ($log) {
+    mifosX.ng.application.controller('CreateLoanProductController', ['$scope','$rootScope', 'ResourceFactory', '$location', 'dateFilter','WizardHandler', '$translate', mifosX.controllers.CreateLoanProductController]).run(function ($log) {
         $log.info("CreateLoanProductController initialized");
     });
 }(mifosX.controllers || {}));

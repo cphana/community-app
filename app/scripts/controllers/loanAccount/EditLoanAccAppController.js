@@ -9,6 +9,7 @@
             scope.collaterals = [];
             scope.restrictDate = new Date();
             scope.date = {};
+            scope.rateFlag = false;
 
             resourceFactory.loanResource.get({loanId: routeParams.id, template: true, associations: 'charges,collateral,meeting,multiDisburseDetails',staffInSelectedOfficeOnly:true}, function (data) {
                 scope.loanaccountinfo = data;
@@ -51,6 +52,7 @@
                 }
 
                 scope.previewClientLoanAccInfo();
+                scope.ratesEnabled= scope.loanaccountinfo.isRatesEnabled;
 
             });
 
@@ -121,10 +123,18 @@
                 scope.formData.numberOfRepayments = scope.loanaccountinfo.numberOfRepayments;
                 scope.formData.repaymentEvery = scope.loanaccountinfo.repaymentEvery;
                 scope.formData.repaymentFrequencyType = scope.loanaccountinfo.repaymentFrequencyType.id;
+                if (scope.loanaccountinfo.repaymentFrequencyNthDayType != null){
+                    scope.formData.repaymentFrequencyNthDayType = scope.loanaccountinfo.repaymentFrequencyNthDayType.id;
+                }
+                if(scope.loanaccountinfo.repaymentFrequencyDayOfWeekType != null){
+                    scope.formData.repaymentFrequencyDayOfWeekType = scope.loanaccountinfo.repaymentFrequencyDayOfWeekType.id
+                }
                 scope.formData.interestRatePerPeriod = scope.loanaccountinfo.interestRatePerPeriod;
                 scope.formData.interestRateFrequencyType = scope.loanaccountinfo.interestRateFrequencyType.id;
                 scope.formData.amortizationType = scope.loanaccountinfo.amortizationType.id;
+                scope.formData.fixedPrincipalPercentagePerInstallment = scope.loanaccountinfo.fixedPrincipalPercentagePerInstallment;
                 scope.formData.interestType = scope.loanaccountinfo.interestType.id;
+                scope.formData.isEqualAmortization = scope.loanaccountinfo.isEqualAmortization;
                 scope.formData.interestCalculationPeriodType = scope.loanaccountinfo.interestCalculationPeriodType.id;
                 scope.formData.allowPartialPeriodInterestCalcualtion = scope.loanaccountinfo.allowPartialPeriodInterestCalcualtion;
                 scope.formData.inArrearsTolerance = scope.loanaccountinfo.inArrearsTolerance;
@@ -137,6 +147,8 @@
                 scope.formData.fixedEmiAmount = scope.loanaccountinfo.fixedEmiAmount;
                 scope.formData.maxOutstandingLoanBalance = scope.loanaccountinfo.maxOutstandingLoanBalance;
                 scope.formData.createStandingInstructionAtDisbursement = scope.loanaccountinfo.createStandingInstructionAtDisbursement;
+                scope.formData.isTopup = scope.loanaccountinfo.isTopup;
+                scope.formData.loanIdToClose = scope.loanaccountinfo.closureLoanId;
 
                 if (scope.loanaccountinfo.meeting) {
                     scope.formData.syncRepaymentsWithMeeting = true;
@@ -153,7 +165,66 @@
                 }
                 scope.formData.interestRateDifferential = scope.loanaccountinfo.interestRateDifferential ;
                 scope.formData.isFloatingInterestRate = scope.loanaccountinfo.isFloatingInterestRate ;
-            }
+                //Load Rates information
+                scope.formData.rates = scope.loanaccountinfo.rates;
+                scope.firstChange = false;
+                scope.rateOptions = scope.loanaccountinfo.product.rates.filter(function(rate){
+                    var exist = false;
+                    scope.formData.rates.forEach(function(addedRate){
+                        if(rate.id === addedRate.id){
+                            exist = true;
+                        }
+                    });
+                    return !exist;
+                });
+                if (scope.formData.rates && scope.formData.rates.length>0){
+                    scope.rateFlag=true;
+                }else{
+                    scope.rateFlag=false;
+                }
+            };
+
+            //Rate
+            scope.rateSelected = function(currentRate){
+                if(currentRate && !scope.checkIfRateAlreadyExist(currentRate)){
+                    scope.rateFlag=true;
+                    scope.formData.rates.push(currentRate);
+                    scope.rateOptions.splice(scope.rateOptions.indexOf(currentRate),1);
+                    scope.currentRate = '';
+                    currentRate = '';
+                    scope.calculateRates();
+                }
+            };
+
+            scope.checkIfRateAlreadyExist = function(currentRate){
+                var exist = false;
+                scope.formData.rates.forEach(function(rate){
+                    if(rate.id === currentRate.id){
+                        exist = true;
+                    }
+                });
+                return exist;
+            };
+
+            scope.calculateRates = function(){
+                var total = 0;
+                scope.formData.rates.forEach(function(rate){
+                    total += rate.percentage;
+                });
+                if (total===0){
+                    scope.rateFlag=false;
+                    total=undefined;
+                }
+                scope.formData.interestRatePerPeriod = total;
+
+
+            };
+
+            scope.deleteRate = function (index){
+                scope.rateOptions.push(scope.formData.rates[index]);
+                scope.formData.rates.splice(index,1);
+                scope.calculateRates();
+            };
 
             scope.addCharge = function () {
                 if (scope.chargeFormData.chargeId) {
@@ -228,11 +299,13 @@
                     for (var i in scope.collaterals) {
                         scope.formData.collateral.push({type: scope.collaterals[i].type, value: scope.collaterals[i].value, description: scope.collaterals[i].description});
                     }
-                    
+
                 }
 
                 if (this.formData.syncRepaymentsWithMeeting) {
-                    this.formData.calendarId = scope.loanaccountinfo.calendarOptions[0].id;
+                    if(scope.loanaccountinfo.calendarOptions){
+                        this.formData.calendarId = scope.loanaccountinfo.calendarOptions[0].id;
+                    }
                     scope.syncRepaymentsWithMeeting = this.formData.syncRepaymentsWithMeeting;
                 }
                 delete this.formData.syncRepaymentsWithMeeting;
@@ -286,7 +359,9 @@
                 }
 
                 if (this.formData.syncRepaymentsWithMeeting) {
-                    this.formData.calendarId = scope.loanaccountinfo.calendarOptions[0].id;
+                    if(scope.loanaccountinfo.calendarOptions){
+                        this.formData.calendarId = scope.loanaccountinfo.calendarOptions[0].id;
+                    }
                 }
                 delete this.formData.syncRepaymentsWithMeeting;
                 delete this.formData.interestRateFrequencyType;

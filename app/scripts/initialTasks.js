@@ -2,11 +2,11 @@
 (function (mifosX) {
     var defineHeaders = function ($httpProvider, $translateProvider, ResourceFactoryProvider, HttpServiceProvider, $idleProvider, $keepaliveProvider, IDLE_DURATION, WARN_DURATION, KEEPALIVE_INTERVAL) {
         var mainLink = getLocation(window.location.href);
-        var baseApiUrl = "https://demo.openmf.org";
+        var baseApiUrl = "https://demo.mifos.io";
         var host = "";
         var portNumber = "";
         //accessing from openmf server
-        if (mainLink.hostname.indexOf('openmf.org') >= 0) {
+        if (mainLink.hostname.indexOf('mifos.io') >= 0) {
             var hostname = window.location.hostname;
             console.log('hostname---' + hostname);
             domains = hostname.split('.');
@@ -60,7 +60,7 @@
         // Configure i18n and preffer language
         //$translateProvider.translations('en', translationsEN);
         //$translateProvider.translations('de', translationsDE);
-
+        $translateProvider.useSanitizeValueStrategy('escaped');
         $translateProvider.useStaticFilesLoader({
             prefix: 'global-translations/locale-',
             suffix: '.json'

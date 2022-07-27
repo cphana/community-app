@@ -1,25 +1,39 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        ViewGroupController: function (scope, routeParams, route, location, resourceFactory, dateFilter, $modal) {
+        ViewGroupController: function (scope, routeParams, route, location, resourceFactory, dateFilter, $uibModal) {
             scope.group = [];
             scope.template = [];
+            scope.groupGLIMAccounts=[];
+            scope.groupGSIMAccounts=[];
+            scope.groupId=routeParams.id;
             scope.formData = {};
             scope.choice = 0;
             scope.staffData = {};
             scope.openLoan = true;
             scope.openSaving = true;
             scope.editMeeting = false;
+            scope.isGroupMembersAvailable = false;
             scope.routeToLoan = function (id) {
                 location.path('/viewloanaccount/' + id);
             };
             scope.routeToSaving = function (id) {
                 location.path('/viewsavingaccount/' + id);
             };
+            scope.routeToGLIMLoan = function (glimAccountNumber, glimId) {
+                location.path('/viewglimaccount/' +scope.groupId +'/'+glimAccountNumber +'/'+glimId);
+            };
+
+            scope.routeToGSIMAccount = function (gsimAccountNumber) {
+                location.path('/viewgsimaccount/' + scope.groupId+'/'+gsimAccountNumber);
+            };
             scope.routeToMem = function (id) {
                 location.path('/viewclient/' + id);
             };
             resourceFactory.groupResource.get({groupId: routeParams.id, associations: 'all'}, function (data) {
                 scope.group = data;
+                if(scope.group.clientMembers){
+                    scope.isGroupMembersAvailable = (scope.group.clientMembers.length>0);
+                }
                 scope.isClosedGroup = scope.group.status.value == 'Closed';
                 scope.staffData.staffId = data.staffId;
                 if(data.collectionMeetingCalendar) {
@@ -41,6 +55,13 @@
             resourceFactory.groupNotesResource.getAllNotes({groupId: routeParams.id}, function (data) {
                 scope.groupNotes = data;
             });
+            resourceFactory.groupGLIMAccountResource.get({groupId: routeParams.id}, function (data) {
+                scope.groupGLIMAccounts = data;
+            });
+
+            resourceFactory.groupGSIMAccountResource.get({groupId: routeParams.id}, function (data) {
+                scope.groupGSIMAccounts = data;
+            });
             scope.delrole = function (id) {
                 resourceFactory.groupResource.save({groupId: routeParams.id, command: 'unassignRole', roleId: id}, {}, function (data) {
                     resourceFactory.groupResource.get({groupId: routeParams.id}, function (data) {
@@ -49,37 +70,37 @@
                 });
             };
             scope.deleteGroup = function () {
-                $modal.open({
+                $uibModal.open({
                     templateUrl: 'deletegroup.html',
                     controller: GroupDeleteCtrl
                 });
             };
             scope.unassignStaffGroup = function () {
-                $modal.open({
+                $uibModal.open({
                     templateUrl: 'groupunassignstaff.html',
                     controller: GroupUnassignCtrl
                 });
             };
-            var GroupUnassignCtrl = function ($scope, $modalInstance) {
+            var GroupUnassignCtrl = function ($scope, $uibModalInstance) {
                 $scope.unassign = function () {
                     resourceFactory.groupResource.save({groupId: routeParams.id, command: 'unassignstaff'}, scope.staffData, function (data) {
-                        $modalInstance.close('unassign');
+                        $uibModalInstance.close('unassign');
                         route.reload();
                     });
                 };
                 $scope.cancel = function () {
-                    $modalInstance.dismiss('cancel');
+                    $uibModalInstance.dismiss('cancel');
                 };
             };
-            var GroupDeleteCtrl = function ($scope, $modalInstance) {
+            var GroupDeleteCtrl = function ($scope, $uibModalInstance) {
                 $scope.delete = function () {
                     resourceFactory.groupResource.delete({groupId: routeParams.id}, {}, function (data) {
-                        $modalInstance.close('delete');
+                        $uibModalInstance.close('delete');
                         location.path('/groups');
                     });
                 };
                 $scope.cancel = function () {
-                    $modalInstance.dismiss('cancel');
+                    $uibModalInstance.dismiss('cancel');
                 };
             };
             scope.cancel = function (id) {
@@ -211,7 +232,7 @@
 
         }
     });
-    mifosX.ng.application.controller('ViewGroupController', ['$scope', '$routeParams', '$route', '$location', 'ResourceFactory', 'dateFilter', '$modal', mifosX.controllers.ViewGroupController]).run(function ($log) {
+    mifosX.ng.application.controller('ViewGroupController', ['$scope', '$routeParams', '$route', '$location', 'ResourceFactory', 'dateFilter', '$uibModal', mifosX.controllers.ViewGroupController]).run(function ($log) {
         $log.info("ViewGroupController initialized");
     });
 }(mifosX.controllers || {}));

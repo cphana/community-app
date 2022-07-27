@@ -1,13 +1,15 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        CreateSavingProductController: function (scope, resourceFactory, location) {
+        CreateSavingProductController: function (scope, $rootScope, resourceFactory, location , WizardHandler) {
             scope.formData = {};
+            scope.savingproduct = {};
             scope.charges = [];
             scope.showOrHideValue = "show";
             scope.configureFundOptions = [];
             scope.specificIncomeaccounts = [];
             scope.penaltySpecificIncomeaccounts = [];
             scope.configureFundOption = {};
+            scope.isClicked = false;
 
             resourceFactory.savingProductResource.get({resourceType: 'template'}, function (data) {
                 scope.product = data;
@@ -16,6 +18,24 @@
                 scope.liabilityAccountOptions = scope.product.accountingMappingOptions.liabilityAccountOptions || [];
                 scope.incomeAccountOptions = scope.product.accountingMappingOptions.incomeAccountOptions || [];
                 scope.expenseAccountOptions = scope.product.accountingMappingOptions.expenseAccountOptions || [];
+                scope.paymentOptions = [];
+                //
+                scope.accountMappingForPayment = scope.product.accountMappingForPayment.toLowerCase();
+                var accountMappingForPaymentVar = scope.accountMappingForPayment;
+                if(accountMappingForPaymentVar.indexOf("asset") > -1){
+                    scope.paymentOptions = scope.paymentOptions.concat(scope.assetAccountOptions);
+                }
+                if(accountMappingForPaymentVar.indexOf("liability") > -1){
+                    scope.paymentOptions = scope.paymentOptions.concat(scope.liabilityAccountOptions);
+                }
+               if(accountMappingForPaymentVar.indexOf("expense") > -1){
+                scope.paymentOptions = scope.paymentOptions.concat(scope.expenseAccountOptions);
+                }
+               if(accountMappingForPaymentVar.indexOf("income") > -1){
+                scope.paymentOptions = scope.paymentOptions.concat(scope.incomeAccountOptions);
+                }
+                
+
 
                 scope.formData.currencyCode = data.currencyOptions[0].code;
                 scope.formData.digitsAfterDecimal = data.currencyOptions[0].decimalPlaces;
@@ -24,8 +44,28 @@
                 scope.formData.interestCalculationType = data.interestCalculationType.id;
                 scope.formData.interestCalculationDaysInYearType = data.interestCalculationDaysInYearType.id;
                 scope.formData.accountingRule = '1';
+                scope.savingproduct = angular.copy(scope.formData);
 
             });
+
+            scope.$watch('formData',function(newVal){
+                scope.savingproduct = angular.extend(scope.savingproduct,newVal);
+            },true);
+
+            scope.goNext = function(form){
+                WizardHandler.wizard().checkValid(form);
+                scope.isClicked = true;
+            }
+
+            scope.formValue = function(array,model,findattr,retAttr){
+                findattr = findattr ? findattr : 'id';
+                retAttr = retAttr ? retAttr : 'value';
+                console.log(findattr,retAttr,model);
+                return _.find(array, function (obj) {
+                    return obj[findattr] === model;
+                })[retAttr];
+            };
+            //$rootScope.formValue is used which is defined in CreateLoanProductController.js
 
             //advanced accounting rule
             scope.showOrHide = function (showOrHideValue) {
@@ -56,12 +96,12 @@
 
             scope.addConfigureFundSource = function () {
                 if (scope.product.paymentTypeOptions && scope.product.paymentTypeOptions.length > 0 &&
-                    scope.assetAccountOptions && scope.assetAccountOptions.length > 0) {
+                    scope.paymentOptions && scope.paymentOptions.length > 0) {
                     scope.configureFundOptions.push({
                         paymentTypeId: scope.product.paymentTypeOptions[0].id,
-                        fundSourceAccountId: scope.assetAccountOptions[0].id,
+                        fundSourceAccountId: scope.paymentOptions[0].id,
                         paymentTypeOptions: scope.product.paymentTypeOptions,
-                        assetAccountOptions: scope.assetAccountOptions
+                        assetAccountOptions: scope.paymentOptions
                     });
                 }
                 ;
@@ -159,7 +199,7 @@
             }
         }
     });
-    mifosX.ng.application.controller('CreateSavingProductController', ['$scope', 'ResourceFactory', '$location', mifosX.controllers.CreateSavingProductController]).run(function ($log) {
+    mifosX.ng.application.controller('CreateSavingProductController', ['$scope', '$rootScope', 'ResourceFactory', '$location','WizardHandler', mifosX.controllers.CreateSavingProductController]).run(function ($log) {
         $log.info("CreateSavingProductController initialized");
     });
 }(mifosX.controllers || {}));

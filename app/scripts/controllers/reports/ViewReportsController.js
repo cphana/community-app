@@ -1,6 +1,6 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        ViewReportsController: function (scope, routeParams, resourceFactory, location, route) {
+        ViewReportsController: function (scope, routeParams, resourceFactory,  location, anchorScroll, route) {
             scope.reports = [];
             scope.type = routeParams.type;
             //to display type of report on breadcrumb
@@ -11,11 +11,34 @@
                 location.path('/run_report/' + report.report_name).search({reportId: report.report_id, type: report.report_type});
             };
 
+            scope.scrollto = function (link){
+                location.hash(link);
+                anchorScroll();
+
+            };
+
             if (!scope.searchCriteria.reports) {
                 scope.searchCriteria.reports = null;
                 scope.saveSC();
             }
-            scope.filterText = scope.searchCriteria.reports;
+            scope.filterText = scope.searchCriteria.reports || '';
+
+            scope.addLocaleReportName = function (){
+                if(document.getElementsByName("locale_name") != undefined && scope.reports){
+                    if(scope.reports[0].report_locale_name == undefined){
+                        var result = document.getElementsByName("locale_name");
+                        for(var i=0; i<result.length; i++) {
+                            scope.reports[i].report_locale_name = result[i].value;
+                        }
+                        //console.log(JSON.stringify(scope.reports));
+                    }
+                    scope.onFilter();
+                }
+            };
+
+            scope.filterByReportSubType = function(report) {
+                return !(report.report_subtype === 'Triggered');
+            }
 
             scope.onFilter = function () {
                 scope.searchCriteria.reports = scope.filterText;
@@ -48,6 +71,8 @@
                 });
             }
 
+            scope.ReportsPerPage = 15;
+
             // Remove the duplicate entries from the array. The reports api returns same report multiple times if it have more than one parameter.
             scope.getReports = function (data) {
                 var prevId = -1;
@@ -63,7 +88,7 @@
             };
         }
     });
-    mifosX.ng.application.controller('ViewReportsController', ['$scope', '$routeParams', 'ResourceFactory', '$location', '$route', mifosX.controllers.ViewReportsController]).run(function ($log) {
+    mifosX.ng.application.controller('ViewReportsController', ['$scope', '$routeParams', 'ResourceFactory', '$location', '$route', '$anchorScroll' ,mifosX.controllers.ViewReportsController]).run(function ($log) {
         $log.info("ViewReportsController initialized");
     });
 }(mifosX.controllers || {}));

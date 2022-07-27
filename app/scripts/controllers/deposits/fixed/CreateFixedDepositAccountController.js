@@ -1,15 +1,21 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        CreateFixedDepositAccountController: function (scope, resourceFactory, location, routeParams, dateFilter,$modal) {
+        CreateFixedDepositAccountController: function (scope, resourceFactory, location, routeParams, dateFilter,$uibModal, WizardHandler) {
             scope.products = [];
             scope.fieldOfficers = [];
             scope.formData = {};
+            scope.transientData ={};
             scope.restrictDate = new Date();
+            scope.fixedDetails = {};
             scope.clientId = routeParams.clientId;
             scope.groupId = routeParams.groupId;
             if (routeParams.centerEntity) {
                 scope.centerEntity = true;
             }
+
+            scope.date = {};
+			scope.date.submittedOnDate = new Date();
+            scope.disabled = true;
 
             //interest rate chart details
             scope.chart = {};
@@ -18,6 +24,9 @@
 
             scope.charges = [];
             scope.inparams = {};
+
+            scope.maturityDetails = {};
+
             if (scope.clientId) {
                 scope.inparams.clientId = scope.clientId
             }
@@ -39,10 +48,15 @@
                 scope.savingsAccounts = data.savingsAccounts;
             });
 
+            scope.goNext = function(form){
+                WizardHandler.wizard().checkValid(form);
+            }
+
             scope.changeProduct = function () {
                 scope.inparams.productId = scope.formData.productId;
                 resourceFactory.fixedDepositAccountTemplateResource.get(scope.inparams, function (data) {
-
+                    scope.depositRolloverOptions = data.maturityInstructionOptions;
+                    scope.savingsAccounts = data.savingsAccounts;
                     scope.data = data;
                     scope.charges = data.charges;
 
@@ -56,6 +70,7 @@
                     scope.formData.nominalAnnualInterestRate = data.nominalAnnualInterestRate;
                     scope.formData.minRequiredOpeningBalance = data.minRequiredOpeningBalance;
                     scope.formData.lockinPeriodFrequency = data.lockinPeriodFrequency;
+                    scope.formData.withHoldTax = data.withHoldTax;
 
                     if (data.interestCompoundingPeriodType) scope.formData.interestCompoundingPeriodType = data.interestCompoundingPeriodType.id;
                     if (data.interestPostingPeriodType) scope.formData.interestPostingPeriodType = data.interestPostingPeriodType.id;
@@ -66,11 +81,11 @@
                     if (data.interestFreePeriodApplicable) scope.formData.interestFreePeriodApplicable = data.interestFreePeriodApplicable;
                     if (data.preClosurePenalApplicable) scope.formData.preClosurePenalApplicable = data.preClosurePenalApplicable;
 
+                    scope.disabled = false;
+                    scope.fixedDetails = angular.copy(scope.formData);
+                    scope.fixedDetails.productName = scope.formValue(scope.products,scope.formData.productId,'id','name');
                     scope.chart = data.accountChart;
                     scope.chartSlabs = scope.chart.chartSlabs;
-                    scope.chart.chartSlabs = _.sortBy(scope.chartSlabs, function (obj) {
-                        return obj.fromPeriod
-                    });
                     //format chart date values
                     if (scope.chart.fromDate) {
                         var fromDate = dateFilter(scope.chart.fromDate, scope.df);
@@ -104,6 +119,19 @@
                     scope.formData.inMultiplesOfDepositTermTypeId = inMultiplesOfDepositTermTypeId;
                     scope.formData.transferInterestToSavings = 'false';
                 });
+            };
+
+            scope.$watch('formData',function(newVal){
+               scope.fixedDetails = angular.extend(scope.fixedDetails,newVal);
+            });
+
+            scope.formValue = function(array,model,findattr,retAttr){
+                findattr = findattr ? findattr : 'id';
+                retAttr = retAttr ? retAttr : 'value';
+                console.log(findattr,retAttr,model);
+                return _.find(array, function (obj) {
+                    return obj[findattr] === model;
+                })[retAttr];
             };
 
             scope.addCharge = function (chargeId) {
@@ -150,18 +178,19 @@
 
                 if (scope.charges.length > 0) {
                     for (var i in scope.charges) {
-                        if (scope.charges[i].chargeTimeType.value == 'Annual Fee') {
-                            this.formData.charges.push({ chargeId: scope.charges[i].chargeId, amount: scope.charges[i].amount,
-                                feeOnMonthDay: dateFilter(scope.charges[i].feeOnMonthDay, 'dd MMMM')});
-                        } else if (scope.charges[i].chargeTimeType.value == 'Specified due date') {
-                            this.formData.charges.push({ chargeId: scope.charges[i].chargeId, amount: scope.charges[i].amount,
-                                dueDate: dateFilter(scope.charges[i].dueDate, scope.df)});
-                        } else if (scope.charges[i].chargeTimeType.value == 'Monthly Fee') {
-                            this.formData.charges.push({ chargeId: scope.charges[i].chargeId, amount: scope.charges[i].amount,
-                                feeOnMonthDay: dateFilter(scope.charges[i].feeOnMonthDay, 'dd MMMM'), feeInterval: scope.charges[i].feeInterval});
-                        } else {
-                            this.formData.charges.push({ chargeId: scope.charges[i].chargeId, amount: scope.charges[i].amount});
+
+                        var chargeData = { chargeId: scope.charges[i].chargeId, amount: scope.charges[i].amount};
+                        if(scope.charges[i].chargeTimeType.value == 'Annual Fee' || scope.charges[i].chargeTimeType.value == 'Monthly Fee'){
+                            chargeData.feeOnMonthDay = dateFilter(scope.charges[i].feeOnMonthDay, 'dd MMMM');
                         }
+                        if (scope.charges[i].chargeTimeType.value == 'Specified due date' || scope.charges[i].chargeTimeType.code=='chargeTimeType.weeklyFee') {
+                            chargeData.dueDate = dateFilter(scope.charges[i].dueDate, scope.df);
+                        }
+
+                        if (scope.charges[i].chargeTimeType.value == 'Monthly Fee' || scope.charges[i].chargeTimeType.code=='chargeTimeType.weeklyFee') {
+                            chargeData.feeInterval = scope.charges[i].feeInterval;
+                        }
+                        this.formData.charges.push(chargeData);
                     }
                 }
 
@@ -183,6 +212,22 @@
                     location.path('/viewgroup/' + scope.groupId);
                 }
             }
+            scope.changeMaturityInstruction = function(){
+                
+                scope.maturityDetails.maturityInstructionId = scope.formData.maturityInstructionId;
+                // scope.maturityDetails.onAccountClosure = scope.depositRolloverOptions.find(function(item){
+                //     return item.id == scope.formData.maturityInstructionId
+                // });
+
+                scope.maturityDetails.onAccountClosure = _.find(scope.depositRolloverOptions,function(item){
+                    return item.id == scope.formData.maturityInstructionId;
+                });
+                
+                scope.maturityDetails.transferToSavingsAccount = _.find(scope.savingsAccounts,function(item){ 
+                    return item.id == scope.formData.transferToSavingsId;
+                });
+                  
+            }          
 
             /**
              * Add a new row with default values for entering chart details
@@ -227,6 +272,7 @@
                     description: scope.chart.description,
                     fromDate: dateFilter(scope.fromDate.date, scope.df),
                     endDate: dateFilter(scope.endDate.date, scope.df),
+                    isPrimaryGroupingByAmount:scope.chart.isPrimaryGroupingByAmount,
                     //savingsProductId: scope.productId,
                     dateFormat: scope.df,
                     locale: scope.optlang.code,
@@ -267,7 +313,6 @@
                 var newChartSlabData = {
                     id: chartSlab.id,
                     description: chartSlab.description,
-                    periodType: chartSlab.periodType.id,
                     fromPeriod: chartSlab.fromPeriod,
                     toPeriod: chartSlab.toPeriod,
                     amountRangeFrom: chartSlab.amountRangeFrom,
@@ -276,7 +321,9 @@
                     locale: scope.optlang.code,
                     incentives:angular.copy(copyIncentives(chartSlab.incentives))
                 }
-
+                if(chartSlab.periodType != undefined) {
+                    newChartSlabData.periodType = chartSlab.periodType.id;
+                }
                 //remove empty values
                 _.each(newChartSlabData, function (v, k) {
                     if (!v && v != 0)
@@ -306,7 +353,7 @@
                 scope.chart.chartSlabs.splice(index, 1);
             }
             scope.incentives = function(index){
-                $modal.open({
+                $uibModal.open({
                     templateUrl: 'incentive.html',
                     controller: IncentiveCtrl,
                     resolve: {
@@ -353,7 +400,7 @@
                 return newIncentiveDataData;
             }
 
-            var IncentiveCtrl = function ($scope, $modalInstance, data,chartSlab) {
+            var IncentiveCtrl = function ($scope, $uibModalInstance, data,chartSlab) {
                 $scope.data = data;
                 $scope.chartSlab = chartSlab;
                 _.each($scope.chartSlab.incentives, function (incentive) {
@@ -362,7 +409,7 @@
                     }
                 });
                 $scope.cancel = function () {
-                    $modalInstance.dismiss('cancel');
+                    $uibModalInstance.dismiss('cancel');
                 };
 
                 $scope.addNewRow = function () {
@@ -388,7 +435,7 @@
 
         }
     });
-    mifosX.ng.application.controller('CreateFixedDepositAccountController', ['$scope', 'ResourceFactory', '$location', '$routeParams', 'dateFilter','$modal', mifosX.controllers.CreateFixedDepositAccountController]).run(function ($log) {
+    mifosX.ng.application.controller('CreateFixedDepositAccountController', ['$scope', 'ResourceFactory', '$location', '$routeParams', 'dateFilter','$uibModal', 'WizardHandler', mifosX.controllers.CreateFixedDepositAccountController]).run(function ($log) {
         $log.info("CreateFixedDepositAccountController initialized");
     });
 }(mifosX.controllers || {}));

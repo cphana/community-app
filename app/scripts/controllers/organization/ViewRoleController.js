@@ -1,6 +1,6 @@
 (function (module) {
     mifosX.controllers = _.extend(module, {
-        ViewRoleController: function (scope, routeParams, resourceFactory, route, $modal) {
+        ViewRoleController: function (scope, routeParams, resourceFactory, route, $uibModal) {
 
             scope.permissions = [];
             scope.groupings = [];
@@ -12,6 +12,7 @@
             resourceFactory.rolePermissionResource.get({roleId: routeParams.id}, function (data) {
                 scope.role = data;
                 scope.isDisabled = true;
+                scope.isAllFunctionsDisabled = false;
 
                 var currentGrouping = "";
                 for (var i in data.permissionUsageData) {
@@ -24,6 +25,7 @@
                     var temp = { code: data.permissionUsageData[i].code};
                     scope.formData[data.permissionUsageData[i].code] = data.permissionUsageData[i].selected;
                     tempPermissionUIData[currentGrouping].permissions.push(temp);
+                    scope.isAllFunctionsDisabled = scope.formData['ALL_FUNCTIONS'];
                 }
 
                 scope.backupCheckValues = function()
@@ -45,59 +47,59 @@
                 };
 
                 scope.disableRolesConfirmation = function () {
-                    $modal.open({
+                    $uibModal.open({
                         templateUrl: 'disablerole.html',
                         controller: RoleDisableCtrl
                     });
                 };
 
-                var RoleDisableCtrl = function ($scope, $modalInstance) {
+                var RoleDisableCtrl = function ($scope, $uibModalInstance) {
                     $scope.disableRoles = function () {
                         resourceFactory.roleResource.disableRoles({roleId: routeParams.id, command: 'disable'}, function (data) {
-                            $modalInstance.close('disableRoles');
+                            $uibModalInstance.close('disableRoles');
                             location.href = '#/admin/roles';
                         });
                     };
                     $scope.cancelDisableRole = function () {
-                        $modalInstance.dismiss('cancelDisableRole');
+                        $uibModalInstance.dismiss('cancelDisableRole');
                     };
                 };
 
                 scope.enableRolesConfirmation = function () {
-                    $modal.open({
+                    $uibModal.open({
                         templateUrl: 'enablerole.html',
                         controller: RoleEnableCtrl
                     });
                 };
 
-                var RoleEnableCtrl = function ($scope, $modalInstance) {
+                var RoleEnableCtrl = function ($scope, $uibModalInstance) {
                     $scope.enableRoles = function () {
                         resourceFactory.roleResource.enableRoles({roleId: routeParams.id, command: 'enable'}, function (data) {
-                            $modalInstance.close('enableRoles');
+                            $uibModalInstance.close('enableRoles');
                             location.href = '#/admin/roles';
                         });
                     };
                     $scope.cancelEnableRole = function () {
-                        $modalInstance.dismiss('cancelEnableRole');
+                        $uibModalInstance.dismiss('cancelEnableRole');
                     };
                 };
 
                 scope.deleteRolesConfirmation = function () {
-                    $modal.open({
+                    $uibModal.open({
                         templateUrl: 'deleterole.html',
                         controller: RoleDeleteCtrl
                     });
                 };
 
-                var RoleDeleteCtrl = function ($scope, $modalInstance) {
+                var RoleDeleteCtrl = function ($scope, $uibModalInstance) {
                     $scope.deleteRoles = function () {
                         resourceFactory.roleResource.deleteRoles({roleId: routeParams.id}, function(data){
-                            $modalInstance.close('deleteRoles');
+                            $uibModalInstance.close('deleteRoles');
                             location.href = '#/admin/roles';
                         });
                     };
                     $scope.cancelDeleteRole = function () {
-                        $modalInstance.dismiss('cancelDeleteRole');
+                        $uibModalInstance.dismiss('cancelDeleteRole');
                     };
                 };
 
@@ -173,11 +175,45 @@
                     {
                         for(var i in checkboxes)
                         {
-                            checkboxes[i].checked = 0;
+                            if (i >= 1)
+                            {
+                                checkboxes[i].checked = 0;
+                            }
+                            else
+                            {
+                                if ('ALL_FUNCTIONS' == this.permissions.permissions[0].code)
+                                {
+                                    if (!this.isAllFunctionsDisabled)
+                                    {
+                                        checkboxes[i].checked = 0;
+                                    }
+                                }
+                                else
+                                {
+                                    checkboxes[i].checked = 0;
+                                }
+                            }
                         }
                         for(var i = 0; i< this.permissions.permissions.length; i++)
                         {
-                            this.formData[this.permissions.permissions[i].code] = false;
+                            if (i >= 1)
+                            {
+                                this.formData[this.permissions.permissions[i].code] = false;
+                            }
+                            else
+                            {
+                                if ('ALL_FUNCTIONS' == this.permissions.permissions[0].code)
+                                {
+                                    if (!this.isAllFunctionsDisabled)
+                                    {
+                                    this.formData[this.permissions.permissions[i].code] = false;
+                                    }
+                                }
+                                else
+                                {
+                                    this.formData[this.permissions.permissions[i].code] = false;
+                                }
+                            }
                         }
 
                     }
@@ -198,11 +234,10 @@
                 };
 
 
-
             });
         }
     });
-    mifosX.ng.application.controller('ViewRoleController', ['$scope', '$routeParams', 'ResourceFactory', '$route','$modal', mifosX.controllers.ViewRoleController]).run(function ($log) {
+    mifosX.ng.application.controller('ViewRoleController', ['$scope', '$routeParams', 'ResourceFactory', '$route','$uibModal', mifosX.controllers.ViewRoleController]).run(function ($log) {
         $log.info("ViewRoleController initialized");
     });
 }(mifosX.controllers || {}));
